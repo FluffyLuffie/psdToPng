@@ -22,14 +22,14 @@ void printData(const std::vector<LayerData>& ld)
 
 int main()
 {
-	auto fileName = "testing.psd";
+	const char *inputFileName = "example/testDog.psd", *outputFileName = "outputs/testDog";
 	std::vector<LayerData> ld;
 
-	int error = PsdToPng::ParsePsd(fileName, ld);
+	int error = PsdToPng::ParsePsd(inputFileName, ld);
 	if (error == 0)
 	{
 		printData(ld);
-		PsdToPng::CreatePngs(fileName, ld);
+		PsdToPng::CreatePngs(outputFileName, ld);
 	}
 
 	return 0;

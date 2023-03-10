@@ -2,7 +2,7 @@
 
 /*
 may contain some unnecessary read/seekg
-mostly there for people who want to get data not used in the example
+mostly there for people who want to reuse this to get data not used in the example
 */
 int PsdToPng::ParsePsd(const char* fileName, std::vector<LayerData> &ld)
 {
@@ -76,12 +76,13 @@ int PsdToPng::ParsePsd(const char* fileName, std::vector<LayerData> &ld)
 		pf.read(buffer, 2);
 		int channels = std::abs(((buffer[0] & 0xFF) << 8) | (buffer[1] & 0xFF));
 
-		//skip over a junk
+		//skip over junk
 		pf.seekg(channels * 6 + 10, std::ios::cur);
 
 		//get visibility
 		pf.read(buffer, 1);
 		ld[layerNum].visible = !(buffer[0] & 2);
+
 		pf.seekg(5, std::ios::cur);
 
 		//layer mask data, junk
@@ -92,13 +93,13 @@ int PsdToPng::ParsePsd(const char* fileName, std::vector<LayerData> &ld)
 		pf.read(buffer, 4);
 		pf.seekg((buffer[0] << 24) | ((buffer[1] & 0xFF) << 16) | ((buffer[2] & 0xFF) << 8) | (buffer[3] & 0xFF), std::ios::cur);
 
+		//skip a byte cause idk
+		pf.seekg(1, std::ios::cur);
+
 		//read in layer name
 		//i have no idea how this part works
 		//if the number of characters is (3 + 4x), for example "arm" or "chicken", the null character does not exist at the end
 		bool layerNameBad = false;
-
-		//skip a byte cause idk
-		pf.seekg(1, std::ios::cur);
 
 		//read until null or signature
 		pf.read(buffer, 1);
@@ -131,8 +132,10 @@ int PsdToPng::ParsePsd(const char* fileName, std::vector<LayerData> &ld)
 			pf.seekg(3, std::ios::cur);
 		}
 
-		//TODO: add a better way of detecting if image or folder, probably through the signature
-		//folder divider names hopefully start with this, Clip Studio Paint is "</Layer set", Krita is "</Layer group>"
+		//TODO: add a better way of detecting if image or folder, probably through the signatures
+		//also, a universal method instead of for each art program
+		
+		//divider names hopefully start with "</Layer", Clip Studio Paint is "</Layer set>", Krita is "</Layer group>"
 		if (ld[layerNum].layerName.compare(0, 7, "</Layer") == 0)
 		{
 			ld[layerNum].layerType = LayerData::LayerType::divider;
@@ -169,8 +172,6 @@ int PsdToPng::ParsePsd(const char* fileName, std::vector<LayerData> &ld)
 		//if not divider
 		else
 		{
-			//documentation is horrible why is Additional Layer Information section in a random place
-
 			//distinguish if folder or image layer
 			pf.read(buffer, 4);
 
@@ -192,7 +193,7 @@ int PsdToPng::ParsePsd(const char* fileName, std::vector<LayerData> &ld)
 				pf.seekg(16, std::ios::cur);
 				break;
 
-			//lspf, Clip Studio Paint raster layers start wit this
+			//lspf, Clip Studio Paint raster layers start with this
 			case 1819504742:
 				//skip a bunch of junk
 				pf.read(buffer, 4);
@@ -254,7 +255,6 @@ int PsdToPng::ParsePsd(const char* fileName, std::vector<LayerData> &ld)
 		//I'm guessing this only happens in folders so if not... good luck
 		case 0:
 			pf.seekg(6, std::ios::cur);
-
 			break;
 		//RLE Compression
 		//only happens in image layers, I hope
@@ -329,13 +329,9 @@ int PsdToPng::ParsePsd(const char* fileName, std::vector<LayerData> &ld)
 	return 0;
 }
 
-void PsdToPng::CreatePngs(const char* fileName, const std::vector<LayerData>& ld)
+void PsdToPng::CreatePngs(const char* outputFolder, const std::vector<LayerData>& ld)
 {
-	std::string curFolder = std::string("outputs/") + fileName;
-	//remove .psd from the end
-	curFolder.erase(curFolder.size() - 4);
-
-	//TODO delete existing folder before creating
+	std::string curFolder = std::string(outputFolder);
 
 	std::filesystem::create_directories(curFolder);
 
@@ -354,19 +350,18 @@ void PsdToPng::CreatePngs(const char* fileName, const std::vector<LayerData>& ld
 				curFolder += '/' + ld[i].layerName;
 				std::filesystem::create_directory(curFolder);
 			}
-			//skip folder
+			//skip folder if invisible
 			else
 			{
-				int depth = 0;
+				int depth = 1;
 				do
 				{
+					i--;
 					if (ld[i].layerType == LayerData::LayerType::folder)
 						depth++;
 					else if (ld[i].layerType == LayerData::LayerType::divider)
 						depth--;
-					i--;
 				} while (depth > 0);
-				i++;
 			}
 		}
 		//divider

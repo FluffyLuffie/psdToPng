@@ -1,7 +1,6 @@
 #pragma once
 
 #include <fstream>
-#include <cstdlib>
 #include <filesystem>
 
 #include "LayerData.h"
@@ -17,6 +16,8 @@ class PsdToPng
 public:
 	//returns 0 if success
 	static int ParsePsd(const char* fileName, std::vector<LayerData> &ld);
-	static void CreatePngs(const char* fileName, const std::vector<LayerData>& lds);
+
+	//does not delete existing files
+	static void CreatePngs(const char* outputFolder, const std::vector<LayerData>& lds);
 };
 
